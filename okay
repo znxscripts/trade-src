@@ -1,0 +1,270 @@
+repeat task.wait() until game:IsLoaded()
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- FreezeRequest setup
+local freezeRequest = ReplicatedStorage:FindFirstChild("FreezeRequest")
+if not freezeRequest then
+    freezeRequest = Instance.new("RemoteEvent")
+    freezeRequest.Name = "FreezeRequest"
+    freezeRequest.Parent = ReplicatedStorage
+end
+
+-- Root GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "GAGViewerGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+-- Draggable function (touch & mouse)
+local function makeDraggable(frame, dragArea)
+    local dragging, dragStart, startPos
+    dragArea.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+           or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    dragArea.InputChanged:Connect(function(input)
+        if dragging and
+           (input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(
+                0,
+                startPos.X.Offset + delta.X,
+                0,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
+
+-- Button styling helper
+local function styleButton(btn, bgColor, textColor)
+    btn.BackgroundColor3 = bgColor or Color3.new(1,1,1)
+    btn.TextColor3 = textColor or Color3.new(0,0,0)
+    btn.BorderSizePixel = 2
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0,12)
+    corner.Parent = btn
+end
+
+-- MAIN WINDOW
+local main = Instance.new("Frame", screenGui)
+main.Name = "MainWindow"
+main.Size = UDim2.new(0,400,0,300)
+main.Position = UDim2.new(0.5, -200, 0.5, -150)
+main.BackgroundColor3 = Color3.fromRGB(173,216,230)
+main.BackgroundTransparency = 0.3
+local mc = Instance.new("UICorner", main)
+mc.CornerRadius = UDim.new(0,20)
+
+-- Title bar
+local titleBar = Instance.new("Frame", main)
+titleBar.Size = UDim2.new(1, 0, 0, 36)
+titleBar.BackgroundColor3 = Color3.fromRGB(20,20,20)
+makeDraggable(main, titleBar)
+
+local title = Instance.new("TextLabel", titleBar)
+title.Size = UDim2.new(1, -36, 1, 0)
+title.Text = "Freeze Trade"
+title.TextColor3 = Color3.new(1,1,1)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+title.BackgroundTransparency = 1
+
+local credit = Instance.new("TextLabel", titleBar)
+credit.Size = UDim2.new(1, -36, 0, 20)
+credit.Position = UDim2.new(0,0,1,0)
+credit.Text = "by ZenxScripts"
+credit.Font = Enum.Font.GothamBold
+credit.TextSize = 14
+credit.BackgroundTransparency = 1
+credit.TextColor3 = Color3.fromHSV(0,1,1)
+
+RunService.Heartbeat:Connect(function(dt)
+    local h = (tick() * 0.5) % 1
+    credit.TextColor3 = Color3.fromHSV(h, 1, 1)
+end)
+
+-- Close button
+local btnClose = Instance.new("TextButton", titleBar)
+btnClose.Size = UDim2.new(0,28,0,28)
+btnClose.Position = UDim2.new(1, -32, 0, 2)
+btnClose.Text = "X"
+styleButton(btnClose, Color3.fromRGB(180,50,50), Color3.new(1,1,1))
+btnClose.MouseButton1Click:Connect(function()
+    main.Visible = false
+end)
+
+-- Show players
+local btnPlayers = Instance.new("TextButton", main)
+btnPlayers.Size = UDim2.new(0,300,0,40)
+btnPlayers.Position = UDim2.new(0,50,0,80)
+btnPlayers.Text = "Show Players"
+styleButton(btnPlayers, Color3.fromRGB(100,149,237), Color3.new(1,1,1))
+
+-- Player list
+local listFrame = Instance.new("ScrollingFrame", main)
+listFrame.Size = UDim2.new(1, -36, 0, 160)
+listFrame.Position = UDim2.new(0, 18, 0, 130)
+listFrame.BackgroundTransparency = 0.7
+listFrame.ScrollBarThickness = 6
+listFrame.Visible = false
+local listLayout = Instance.new("UIListLayout", listFrame)
+listLayout.Padding = UDim.new(0,6)
+
+local function clearList(fr)
+    for _,c in ipairs(fr:GetChildren()) do
+        if c:IsA("TextButton") or c:IsA("TextLabel") then
+            c:Destroy()
+        end
+    end
+end
+
+-- DETAIL WINDOW
+local function openDetail(pl)
+    if screenGui:FindFirstChild("DetailWindow") then
+        screenGui.DetailWindow:Destroy()
+    end
+    local win = Instance.new("Frame", screenGui)
+    win.Name = "DetailWindow"
+    win.Size = UDim2.new(0,320,0,420)
+    win.Position = UDim2.new(0.5, -160, 0.5, -210)
+    win.BackgroundColor3 = Color3.fromRGB(35,35,35)
+    local wc = Instance.new("UICorner", win)
+    wc.CornerRadius = UDim.new(0,12)
+
+    local bar = Instance.new("Frame", win)
+    bar.Size = UDim2.new(1, 0, 0, 32)
+    bar.BackgroundColor3 = Color3.fromRGB(20,20,20)
+    makeDraggable(win, bar)
+
+    local head = Instance.new("TextLabel", bar)
+    head.Size = UDim2.new(1, -60, 1, 0)
+    head.Text = pl.Name.."'s Inventory"
+    head.Font = Enum.Font.GothamBold
+    head.TextSize = 18
+    head.TextColor3 = Color3.new(1,1,1)
+    head.BackgroundTransparency = 1
+
+    local btnX = Instance.new("TextButton", bar)
+    btnX.Size = UDim2.new(0,28,0,28)
+    btnX.Position = UDim2.new(1, -32, 0, 2)
+    btnX.Text = "X"
+    styleButton(btnX, Color3.fromRGB(255,100,100), Color3.new(1,1,1))
+    btnX.MouseButton1Click:Connect(function()
+        win:Destroy()
+    end)
+
+    local content = Instance.new("ScrollingFrame", win)
+    content.Size = UDim2.new(1, -12, 1, -100)
+    content.Position = UDim2.new(0,6,0,40)
+    content.ScrollBarThickness = 6
+    local contentLayout = Instance.new("UIListLayout", content)
+    contentLayout.Padding = UDim.new(0,4)
+
+    -- Backpack items
+    local lbl = Instance.new("TextLabel", content)
+    lbl.Size = UDim2.new(1,0,0,24)
+    lbl.Text = "Backpack Items:"
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextColor3 = Color3.new(1,1,1)
+    lbl.BackgroundTransparency = 1
+
+    local backpack = pl:FindFirstChild("Backpack")
+    if backpack then
+        for _, itm in ipairs(backpack:GetChildren()) do
+            local li = Instance.new("TextLabel", content)
+            li.Size = UDim2.new(1,0,0,24)
+            li.Text = itm.Name
+            li.Font = Enum.Font.Gotham
+            li.TextSize = 14
+            li.TextColor3 = Color3.new(1,1,1)
+            li.BackgroundColor3 = Color3.fromRGB(50,50,50)
+        end
+    else
+        local li = Instance.new("TextLabel", content)
+        li.Size = UDim2.new(1,0,0,24)
+        li.Text = "Cannot access Backpack"
+        li.Font = Enum.Font.Gotham
+        li.TextSize = 14
+        li.TextColor3 = Color3.new(1,0,0)
+        li.BackgroundTransparency = 1
+    end
+
+    -- Freeze Trade button
+    local freezeBtn = Instance.new("TextButton", content)
+    freezeBtn.Size = UDim2.new(1, -10, 0, 32)
+    freezeBtn.Text = "Freeze Trade"
+    styleButton(freezeBtn, Color3.fromRGB(80,150,240), Color3.new(1,1,1))
+    freezeBtn.MouseButton1Click:Connect(function()
+        freezeRequest:FireServer(pl.Name)
+    end)
+
+    -- Auto Force Accept button
+    local acceptBtn = Instance.new("TextButton", content)
+    acceptBtn.Size = UDim2.new(1, -10, 0, 32)
+    acceptBtn.Text = "Auto Force Accept"
+    styleButton(acceptBtn, Color3.fromRGB(80,240,150), Color3.new(0,0,0))
+    acceptBtn.MouseButton1Click:Connect(function()
+        warn("Auto Force Accept functionality not implemented")
+    end)
+
+    task.wait(0.05)
+    content.CanvasSize = UDim2.new(0,0,0,contentLayout.AbsoluteContentSize.Y + 60)
+end
+
+btnPlayers.MouseButton1Click:Connect(function()
+    listFrame.Visible = not listFrame.Visible
+    if not listFrame.Visible then return end
+    clearList(listFrame)
+    for _, pl in ipairs(Players:GetPlayers()) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1,0,0,30)
+        btn.Text = pl.Name
+        styleButton(btn, Color3.fromRGB(200,200,200), Color3.new(0,0,0))
+        btn.Parent = listFrame
+        btn.MouseButton1Click:Connect(function()
+            openDetail(pl)
+        end)
+    end
+    task.wait(0.05)
+    listFrame.CanvasSize = UDim2.new(0,0,0,listLayout.AbsoluteContentSize.Y + 10)
+end)
+
+-- Toggle GUI button (rounded white rectangle)
+local toggle = Instance.new("Frame", screenGui)
+toggle.Size = UDim2.new(0,150,0,48)
+toggle.Position = UDim2.new(0,12,0,12)
+toggle.BackgroundColor3 = Color3.new(1,1,1)
+local cb2 = Instance.new("UICorner", toggle)
+cb2.CornerRadius = UDim.new(0,24)
+makeDraggable(toggle, toggle)
+
+local toggleBtn = Instance.new("TextButton", toggle)
+toggleBtn.Size = UDim2.new(1, -20, 1, -20)
+toggleBtn.Position = UDim2.new(0,10,0,10)
+toggleBtn.Text = "Toggle GUI"
+styleButton(toggleBtn, Color3.new(1,1,1), Color3.new(0,0,0))
+toggleBtn.MouseButton1Click:Connect(function()
+    main.Visible = not main.Visible
+end)
+
+Players.PlayerAdded:Connect(function() btnPlayers:MouseButton1Click() end)
+Players.PlayerRemoving:Connect(function() btnPlayers:MouseButton1Click() end)
+
+print("✅ GUI loaded with rainbow credit, draggable windows & toggle button")
